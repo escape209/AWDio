@@ -1,7 +1,8 @@
 {
   "profiles": {
     "AWDio": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "\"E:\\Games\\ROMs\\Burnout 3 (Xbox)\\sound\\Single.awd\" \"E:\\Games\\ROMs\\Burnout 3 (Xbox)\\sound\\Single\""
     }
   }
 }
