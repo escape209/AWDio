@@ -3,7 +3,6 @@ using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 
 namespace AWDio {
@@ -38,7 +37,7 @@ namespace AWDio {
             var tempDir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
             while (pos < dataPos) {
                 int trkUuidPos = BitConverter.ToInt32(buf, pos);
-                if (trkUuidPos == 0) {
+                if (trkUuidPos <= 0 || trkUuidPos > br.BaseStream.Length) {
                     break;
                 }
                 int trkNamePos = BitConverter.ToInt32(buf, pos + 4);
@@ -56,9 +55,9 @@ namespace AWDio {
                 trkFs.Position = trkFs.Length;
                 trkFs.Write(br.ReadBytes(len), 0, len);
                 trkFs.Close();
-                var test = Process.Start(testExePath, new string[] { "-o", outTrkPath, trkFsName });
+                var pStartInfo = new ProcessStartInfo(testExePath, string.Join(' ', "-o", condPathQuote(outTrkPath), condPathQuote(trkFsName))) { RedirectStandardOutput = true };
+                var test = Process.Start(pStartInfo);
                 test.WaitForExit();
-                //File.Copy(trkFs.Name, outTrkPath, true);
                 File.Delete(trkFsName);
                 pos = trkUuidPos + 0x10;
             }
@@ -76,6 +75,14 @@ namespace AWDio {
             }
 
             return 0;
+        }
+
+        // Add quotes to path if it doesn't have them already.
+        static string condPathQuote(string path) {
+            if (path[0] == '"') {
+                return path;
+            }
+            return '"' + path + '"';
         }
     }
 }
