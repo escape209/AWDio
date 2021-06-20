@@ -1,8 +1,7 @@
 {
   "profiles": {
     "AWDio": {
-      "commandName": "Project",
-      "commandLineArgs": "\"D:\\Games\\ROMs\\PS2\\Burnout Revenge (PS2)\\SOUND\\FE.AWD\""
+      "commandName": "Project"
     }
   }
 }
