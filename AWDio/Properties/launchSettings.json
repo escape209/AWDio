@@ -2,7 +2,7 @@
   "profiles": {
     "AWDio": {
       "commandName": "Project",
-      "commandLineArgs": "\"E:\\Games\\ROMs\\Burnout 3 Review Build\\SOUND\\ELIM.AWD\" \"E:\\Games\\ROMs\\Burnout 3 Review Build\\SOUND\\ELIM\""
+      "commandLineArgs": "\"D:\\Games\\ROMs\\PS2\\Burnout Revenge (PS2)\\SOUND\\FE.AWD\""
     }
   }
 }

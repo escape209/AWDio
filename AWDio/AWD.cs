@@ -1,88 +1,283 @@
 ﻿using System;
-using System.Collections;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 
-namespace AWDio {
+namespace AWDio
+{
     public class AWD {
         static readonly string testExePath = Path.Combine("vgmstream", "test.exe");
 
         static readonly int Sec1Tag = 0x809;
-        static readonly byte[] psUuid = new byte[] { 0xAC, 0xC9, 0xEA, 0xAA, 0x38, 0xFC, 0x17, 0x49, 0xAE, 0x81, 0x64, 0xEA, 0xDB, 0xC7, 0x93, 0x53 };
-        static readonly byte[] xbUuid = new byte[] { 0x04, 0x2D, 0x3A, 0x45, 0x5F, 0xE4, 0xC8, 0x4B, 0x81, 0xF0, 0xDF, 0x75, 0x8B, 0x01, 0xF2, 0x73 };
+        static readonly int soundBankSize = 0x2C;
+        static readonly int waveDictSize = 0x30;
+        static readonly int waveSize = 0x5C;
 
-        public static int Extract(string inFile, string outDir, bool convert) {
-            var fs = new FileStream(inFile, FileMode.Open);
-            var br = new BinaryReader(fs);
-            if (br.ReadInt32() != Sec1Tag) {
-                return 1;
-            }
-            int unk0 = br.ReadInt32();
-            int ctrSize = br.ReadInt32();
-            br.BaseStream.Position = 0;
-            byte[] buf = br.ReadBytes(ctrSize);
-            var platUuid = buf.AsSpan(0x18, 0x10).ToArray();
-            int pName = BitConverter.ToInt32(buf, 0x30);
-            int nameLen = (Array.IndexOf(buf, (byte)0x00, pName, 12) - pName) + 1;
-            string nameStr = Encoding.ASCII.GetString(buf, pName, nameLen);
-            int dataPos = BitConverter.ToInt32(buf, 0x28);
-            Directory.CreateDirectory(outDir);
-            int pos = (int)(br.BaseStream.Position = pName + (int)Math.Ceiling((float)((nameStr.Length + 3) / 4)) * 4);
-            string txthPath = Path.Combine(outDir, ".txth");
-            File.CreateText(txthPath).Close();
-            string codecStr = "codec = " + (Enumerable.SequenceEqual(platUuid, psUuid) ? "PSX" : "PCM16LE");
-            File.WriteAllLines(txthPath, new string[] { codecStr, "channels = @0x1D$1", "sample_rate = @0x10", "start_offset = 0x100", "interleave = 0x1000", "num_samples = data_size" });
-            var tempDir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()));
-            while (pos < dataPos) {
-                int trkUuidPos = BitConverter.ToInt32(buf, pos);
-                if (trkUuidPos <= 0 || trkUuidPos > br.BaseStream.Length) {
-                    break;
-                }
-                int trkNamePos = BitConverter.ToInt32(buf, pos + 4);
-                int trkNameLen = (Array.IndexOf(buf, (byte)0x00, trkNamePos, 16) - trkNamePos) + 1;
-                byte[] trkHdrBuf = buf.AsSpan(pos, ((trkNamePos + trkNameLen) - pos) + 0x10).ToArray();
-                string trkNameStr = Encoding.ASCII.GetString(buf, trkNamePos, trkNameLen).Trim('\0');
-                int len = BitConverter.ToInt32(buf, pos + 0x34);
-                int dat = BitConverter.ToInt32(buf, pos + 0x4C) + dataPos;
-                br.BaseStream.Position = dat;
-                string outTrkPath = Path.Combine(outDir, trkNameStr) + ".wav";
-                var trkFs = File.Create(Path.Combine(outDir, Path.GetRandomFileName()));
-                string trkFsName = trkFs.Name;
-                trkFs.Write(trkHdrBuf);
-                trkFs.SetLength(0x100);
-                trkFs.Position = trkFs.Length;
-                trkFs.Write(br.ReadBytes(len), 0, len);
-                trkFs.Close();
-                var pStartInfo = new ProcessStartInfo(testExePath, string.Join(' ', "-o", condPathQuote(outTrkPath), condPathQuote(trkFsName))) { RedirectStandardOutput = true };
-                var test = Process.Start(pStartInfo);
-                test.WaitForExit();
-                File.Delete(trkFsName);
-                pos = trkUuidPos + 0x10;
-            }
-            File.Delete(txthPath);
-            Console.WriteLine("Internal name          " + nameStr);
-            Console.Write("Platform               ");
-            IStructuralEquatable se = platUuid;
-            if (se.Equals(psUuid, StructuralComparisons.StructuralEqualityComparer)) {
-                Console.WriteLine("PlayStation 2");
-            } else if (se.Equals(xbUuid, StructuralComparisons.StructuralEqualityComparer)) {
-                Console.WriteLine("Xbox");
-            } else {
-                Console.WriteLine("Unknown\nCould not determine target platform of AWD.");
-                return 2;
-            }
+        public static AWD Empty { get; } = new AWD();
 
-            return 0;
+        public AWD() { }
+        public AWD(string name)
+        {
+            this.Name = name;
         }
 
-        // Add quotes to path if it doesn't have them already.
-        static string condPathQuote(string path) {
-            if (path[0] == '"') {
-                return path;
+        public string Name {
+            get { return UID.uniqueName; }
+            set { UID.uniqueName = value; }
+        }
+
+        string sysName = string.Empty;
+        public string SystemName
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(sysName))
+                {
+                    sysName = SystemUuids.GetPlatUuidName(SystemUuid);
+                }
+                return sysName;
             }
-            return '"' + path + '"';
+        }
+
+        public UniqueID UID { get; set; } = new UniqueID(0, "Null", string.Empty, 0);
+
+        public Guid SystemUuid { get; set; }
+
+        public uint Unk0 { get; set; }
+        public uint Unk1 { get; set; }
+
+        public uint DataSize { get; set; }
+
+        public LinkedList<Wave> WaveList { get; set; }
+
+        public static class SystemUuids
+        {
+            public static readonly Guid PlayStation = new(-0x55153654, -0x3C8, 0x4917, new byte[] { 0xAE, 0x81, 0x64, 0xEA, 0xDB, 0xC7, 0x93, 0x53 });
+            public static readonly Guid Xbox = new(0x453A2D04, -0x1BA1, 0x4BC8, new byte[] { 0x81, 0xF0, 0xDF, 0x75, 0x8B, 0x01, 0xF2, 0x73 });
+
+            public static string GetPlatUuidName(Guid uuid)
+            {
+                if (uuid == PlayStation)
+                {
+                    return nameof(PlayStation);
+                }
+                else if (uuid == Xbox)
+                {
+                    return nameof(Xbox);
+                }
+                else
+                {
+                    return "Unknown";
+                }
+            }
+        }
+
+        public class UniqueID
+        {
+            public int pUuid;
+            public string uniqueName;
+            public string copyName;
+            public uint flags;
+
+            public UniqueID(int pUuid, string uniqueName, string copyName, uint flags)
+            {
+                this.pUuid = pUuid;
+                this.uniqueName = uniqueName;
+                this.copyName = copyName;
+                this.flags = flags;
+            }
+
+            public override string ToString()
+            {
+                string ret = uniqueName;
+                if (!string.IsNullOrEmpty(copyName))
+                {
+                    ret += string.Format(" ({0})", copyName);
+                }
+                return ret;
+            }
+        }
+
+        public class Wave
+        {
+            public class Format
+            {
+                public uint sampleRate;
+                public int pDataType;
+                public uint length;
+                public byte bitDepth;
+                public byte noChannels;
+                public int pMiscData;
+                public uint miscDataSize;
+                public byte flags;
+                public byte reserved;
+            }
+
+            public UniqueID uniqueID;
+            public int pWaveDef;
+            public Format format;
+            public Format targetFormat;
+            public uint uncompLength;
+            public int pData;
+            public int pState;
+            public uint flags;
+            public int pObj;
+
+            public override string ToString()
+            {
+                return uniqueID.ToString();
+            }
+        }
+
+        static Wave.Format GetWaveFormat(int[] data)
+        {
+            Wave.Format format = new Wave.Format()
+            {
+                sampleRate = (uint)data[0],
+                pDataType = data[1],
+                length = (uint)data[2],
+                bitDepth = (byte)(0xFF & data[3]),
+                noChannels = (byte)((0xFF00 & data[3]) >> 8),
+                pMiscData = data[4],
+                miscDataSize = (uint)data[5],
+                flags = (byte)(0xFF & data[6]),
+                reserved = (byte)((0xFF00 & data[6]) >> 8),
+            };
+            return format;
+        }
+
+        public static AWD Deserialize(string inFile) {
+            var fs = new FileStream(inFile, FileMode.Open);
+            var br = new BinaryReader(fs);
+
+            var ret = AWD.Empty;
+
+            if (fs.Length <= soundBankSize)
+            {
+                Console.WriteLine(Exception.invalidAwdMessage);
+                return ret;
+            }
+
+            int[] soundBankDat = new int[soundBankSize / sizeof(int)];
+            Buffer.BlockCopy(br.ReadBytes(soundBankSize), 0, soundBankDat, 0, soundBankSize);
+
+            if (soundBankDat[0] != Sec1Tag)
+            {
+                Console.WriteLine(Exception.invalidAwdMessage);
+                return ret;
+            }
+
+            ret.Unk0 = (uint)soundBankDat[1];
+            ret.Unk1 = (uint)soundBankDat[4];
+            ret.DataSize = (uint)soundBankDat[5];
+
+            var sysUuidDat = new byte[16];
+            Buffer.BlockCopy(soundBankDat, 6 * sizeof(int), sysUuidDat, 0, 16);
+            var sysUuid = new Guid(sysUuidDat);
+
+            if (sysUuid == SystemUuids.PlayStation || sysUuid == SystemUuids.Xbox)
+            {
+                ret.SystemUuid = sysUuid;
+                
+            }
+            else
+            {
+                Console.WriteLine(Exception.invalidUuidMessage);
+                return AWD.Empty;
+            }
+
+            fs.Position = soundBankDat[3];
+
+            if (fs.Length <= soundBankSize + waveDictSize)
+            {
+                Console.WriteLine(Exception.invalidAwdMessage);
+                return AWD.Empty;
+            }
+
+            int[] waveDictDat = new int[waveDictSize / sizeof(int)];
+            Buffer.BlockCopy(br.ReadBytes(waveDictSize), 0, waveDictDat, 0, waveDictSize);
+
+            ret.UID.pUuid = waveDictDat[0];
+
+            fs.Position = waveDictDat[1];
+            ret.UID.uniqueName = br.ReadAscii();
+
+            if (waveDictDat[2] != 0)
+            {
+                fs.Position = waveDictDat[2];
+                ret.UID.copyName = br.ReadAscii();
+            }
+
+            ret.UID.flags = (uint)waveDictDat[3];
+
+            Console.WriteLine("Name:    " + ret.Name);
+            Console.WriteLine("System:  " + ret.SystemName);
+
+            fs.Position = waveDictDat[4]; // Go to waveListHead.
+
+            ret.WaveList = new LinkedList<Wave>();
+            
+            int[] linkDat = new int[3];
+            while (linkDat[0] <= linkDat[1])
+            {
+                // Get link.
+                Buffer.BlockCopy(br.ReadBytes(sizeof(int) * linkDat.Length), 0, linkDat, 0, sizeof(int) * linkDat.Length);
+                fs.Position = linkDat[2];
+
+                // Read wave header.
+                var waveDat = new int[23];
+                Buffer.BlockCopy(br.ReadBytes(waveSize), 0, waveDat, 0, waveSize);
+
+                var wave = new Wave
+                {
+                    pWaveDef = waveDat[3],
+                    format = GetWaveFormat(waveDat[4..11]),
+                    targetFormat = GetWaveFormat(waveDat[11..18]),
+                    uncompLength = (uint)waveDat[18],
+                    pData = waveDat[19],
+                    pState = waveDat[20],
+                    flags = (uint)waveDat[21],
+                    pObj = waveDat[22]
+                };
+
+                // Read wave name.
+                fs.Position = waveDat[1];
+                string name = br.ReadAscii();
+                wave.uniqueID = new UniqueID(waveDat[0], name, string.Empty, (uint)waveDat[3]);
+
+                // Read wave copy name.
+                if (waveDat[2] != 0)
+                {
+                    fs.Position = waveDat[2];
+                    string copyName = br.ReadAscii();
+                    wave.uniqueID.copyName = copyName;
+                }
+                
+                ret.WaveList.AddLast(wave);
+
+                fs.Position = linkDat[1];
+            }
+
+            int colWidth = 20;
+            Console.WriteLine("\nWaves (Total: {0}):", ret.WaveList.Count);
+            Console.WriteLine();
+            Console.Write("Name".PadRight(colWidth - 4));
+            Console.Write("Frequency (Hz)".PadRight(colWidth - 2));
+            Console.Write("Channels".PadRight(colWidth - 8));
+            Console.Write("Bit Depth".PadRight(colWidth));
+            Console.WriteLine();
+            Console.WriteLine("".PadRight(colWidth * 4, '='));
+
+            foreach (var item in ret.WaveList)
+            {
+                Console.Write(item.uniqueID.ToString().PadRight(colWidth));
+                Console.Write(item.format.sampleRate.ToString().PadLeft(5).PadRight(colWidth - 3));
+                Console.Write(item.format.noChannels.ToString().PadRight(colWidth - 7));
+                Console.Write(item.format.bitDepth.ToString().PadRight(colWidth));
+                Console.WriteLine();
+            }
+
+            return ret;
         }
     }
 }
