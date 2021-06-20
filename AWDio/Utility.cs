@@ -5,7 +5,6 @@ namespace AWDio
 {
     static class Utility
     {
-
         public static string ReadAscii(this BinaryReader br)
         {
             long start = br.BaseStream.Position;
