@@ -216,12 +216,19 @@ namespace AWDio
             fs.Position = waveDictDat[4]; // Go to waveListHead.
 
             ret.WaveList = new LinkedList<Wave>();
-            
+            List<long> wavePos = new List<long>();
             int[] linkDat = new int[3];
-            while (linkDat[0] <= linkDat[1])
+            while (true)
             {
                 // Get link.
                 Buffer.BlockCopy(br.ReadBytes(sizeof(int) * linkDat.Length), 0, linkDat, 0, sizeof(int) * linkDat.Length);
+                
+                if (wavePos.Contains(linkDat[2]) || linkDat[2] == 0)
+                {
+                    break;
+                }
+
+                wavePos.Add(linkDat[2]);
                 fs.Position = linkDat[2];
 
                 // Read wave header.
