@@ -1,10 +1,17 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Text;
 
 namespace AWDio
 {
-    static class Utility
+    public static class Utility
     {
+        public static int RoundUp(int value, int mul)
+        {
+            int round = (int)(Math.Ceiling(value / (double)mul) * (double)mul);
+            return round;
+        }
+
         public static string ReadAscii(this BinaryReader br)
         {
             long start = br.BaseStream.Position;

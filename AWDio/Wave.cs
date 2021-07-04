@@ -5,13 +5,13 @@ namespace AWDio
 {
     public class Wave
     {
-        public static readonly int size = 0x5C;
+        public const int size = 0x5C;
 
         public class Format
         {
             public uint sampleRate;
             public int pDataType;
-            public uint length;
+            // public int length; // length moved to Wave.
             public byte bitDepth;
             public byte noChannels;
             public int pMiscData;
@@ -19,13 +19,25 @@ namespace AWDio
             public byte flags;
             public byte reserved;
 
+            public int Serialize(BinaryWriter bw, int length)
+            {
+                bw.Write(sampleRate);
+                bw.Write(pDataType); 
+                bw.Write(length);
+                bw.Write((uint)(bitDepth | noChannels << 8));
+                bw.Write(pMiscData);
+                bw.Write(miscDataSize);
+                bw.Write((uint)(flags | reserved << 8));
+
+                return 0;
+            }
+
             public static Format GetWaveFormat(int[] data)
             {
                 Format format = new()
                 {
                     sampleRate = (uint)data[0],
                     pDataType = data[1],
-                    length = (uint)data[2],
                     bitDepth = (byte)(0xFF & data[3]),
                     noChannels = (byte)((0xFF00 & data[3]) >> 8),
                     pMiscData = data[4],
@@ -42,24 +54,87 @@ namespace AWDio
         public Format format;
         public Format targetFormat;
         public uint uncompLength;
+
         public int pData;
+
+        public byte[] Data { get; set; } = Array.Empty<byte>();
+
         public int pState;
         public uint flags;
         public int pObj;
 
-        public static Wave ReadWave(BinaryReader br)
+        public int SerializeAudioData(BinaryWriter bw)
         {
-            // Read wave header.
-            var waveDat = new int[23];
-            Buffer.BlockCopy(br.ReadBytes(Wave.size), 0, waveDat, 0, Wave.size);
+            bw.Write(Data);
+            return 0;
+        }
 
-            var retPos = br.BaseStream.Position;
+
+        public int Serialize(BinaryWriter bw)
+        {
+            // Skip uniqueID.
+            int ppUniqueID = (int)bw.BaseStream.Position;
+            bw.BaseStream.Seek(sizeof(int) * 3, SeekOrigin.Current);
+
+            bw.Write(pWaveDef);
+
+            // Write format and targetFormat.
+            //int pFormat = (int)bw.BaseStream.Position;
+            format.Serialize(bw, Data.Length);
+            //int pTargetFormat = (int)bw.BaseStream.Position;
+            targetFormat.Serialize(bw, Data.Length);
+
+            bw.Write(uncompLength); // Skip data.
+            int ppData = (int)bw.BaseStream.Position;
+            bw.Write(int.MaxValue);
+            bw.Write(pState);
+            bw.Write(flags);
+            bw.Write(pObj);
+
+            // AWD will write the link.
+            bw.BaseStream.Seek(sizeof(int) * 3, SeekOrigin.Current);
+
+            // UniqueID data.
+            int pName = (int)bw.BaseStream.Position;
+            bw.Write(System.Text.Encoding.ASCII.GetBytes(uniqueID.Name + '\0'));
+
+            while (++bw.BaseStream.Position % 4 != 0);
+
+            int pUuid = (int)bw.BaseStream.Position;
+            bw.Write(uniqueID.Uuid.ToByteArray());
+
+            bw.BaseStream.Position = ppUniqueID;
+            bw.Write(pUuid);
+            bw.Write(pName);
+
+            bw.BaseStream.Position = ppData;
+            bw.Write(pData);
+            bw.BaseStream.Seek(0, SeekOrigin.End);
+            //bw.Write(Data);
+            
+
+            bw.BaseStream.Position = pUuid + 0x10;
+
+
+
+
+            
+
+            return 0; 
+        }
+
+        public static Wave Deserialize(BinaryReader br, long dataOffset)
+        {
+            // Read raw wave header.
+            var waveDat = new int[Wave.size / sizeof(int)];
+            var waveDatBytes = br.ReadBytes(size);
+            Buffer.BlockCopy(waveDatBytes, 0, waveDat, 0, size);
 
             var wave = new Wave
             {
                 pWaveDef = waveDat[3],
-                format = Wave.Format.GetWaveFormat(waveDat[4..11]),
-                targetFormat = Wave.Format.GetWaveFormat(waveDat[11..18]),
+                format = Format.GetWaveFormat(waveDat[4..11]),
+                targetFormat = Format.GetWaveFormat(waveDat[11..18]),
                 uncompLength = (uint)waveDat[18],
                 pData = waveDat[19],
                 pState = waveDat[20],
@@ -67,20 +142,21 @@ namespace AWDio
                 pObj = waveDat[22]
             };
 
+            // Read audio data.
+            br.BaseStream.Position = wave.pData + dataOffset;
+            wave.Data = br.ReadBytes(waveDat[6]);
+
+            wave.uniqueID = new UniqueID();
+
             // Read wave name.
-            br.BaseStream.Position = waveDat[1];
-            string name = br.ReadAscii();
-            wave.uniqueID = new UniqueID(waveDat[0], name, string.Empty, (uint)waveDat[3]);
+            wave.uniqueID.pName = (int)(br.BaseStream.Position = waveDat[1]);
+            wave.uniqueID.Name = br.ReadAscii();
 
-            // Read wave copy name.
-            if (waveDat[2] != 0)
-            {
-                br.BaseStream.Position = waveDat[2];
-                string copyName = br.ReadAscii();
-                wave.uniqueID.copyName = copyName;
-            }
+            // Read UUID.
+            wave.uniqueID.pUuid = (int)(br.BaseStream.Position = waveDat[0]);
+            wave.uniqueID.Uuid = new Guid(br.ReadBytes(16));
 
-            br.BaseStream.Position = retPos;
+            wave.uniqueID.flags = (uint)waveDat[2];
 
             return wave;
         }

@@ -10,12 +10,22 @@ namespace AWDio
         static void Main(string[] args)
         {
             Console.WriteLine(usage);
-            if (args.Length != 1 || !File.Exists(args[0]))
-            {
-                return;
-            }
             Console.WriteLine();
-            AWD.Deserialize(args[0]);
+            switch (args.Length)
+            {
+                case 1:
+                    AWD.Deserialize(args[0]);
+                    break;
+                case 2:
+                    var awd = AWD.Deserialize(args[0]);
+                    if (awd != AWD.Empty)
+                    {
+                        int ret = AWD.Serialize(awd, args[1]);
+                    }
+                    break;
+                default:
+                    return;
+            }
         }
     }
 }

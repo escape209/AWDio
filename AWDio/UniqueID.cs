@@ -1,28 +1,28 @@
-﻿namespace AWDio
+﻿using System;
+using System.IO;
+
+namespace AWDio
 {
     public class UniqueID
     {
         public int pUuid;
-        public string uniqueName;
-        public string copyName;
+        public int pName;
         public uint flags;
 
-        public UniqueID(int pUuid, string uniqueName, string copyName, uint flags)
+        public string Name { get; set; } = string.Empty;
+        public Guid Uuid { get; set; } = Guid.Empty;
+
+        public UniqueID() { }
+        public UniqueID(int pUuid, int pName, uint flags)
         {
             this.pUuid = pUuid;
-            this.uniqueName = uniqueName;
-            this.copyName = copyName;
+            this.pName = pName;
             this.flags = flags;
         }
 
         public override string ToString()
         {
-            string ret = uniqueName;
-            if (!string.IsNullOrEmpty(copyName))
-            {
-                ret += string.Format(" ({0})", copyName);
-            }
-            return ret;
+            return Name;
         }
     }
 }
