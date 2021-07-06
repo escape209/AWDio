@@ -14,4 +14,8 @@
     <Exec Command="xcopy &quot;$(SolutionDir)vgmstream&quot; &quot;$(TargetDir)vgmstream&quot; /e /y /i /r" />
   </Target>
 
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
+
 </Project>

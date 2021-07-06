@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Text;
+using Newtonsoft.Json;
 
 namespace AWDio
 {
@@ -9,20 +11,35 @@ namespace AWDio
 
         public class Format
         {
+            [JsonIgnore]
             public uint sampleRate;
-            public int pDataType;
+
+            public int dataType;
+
             // public int length; // length moved to Wave.
+
+            [JsonIgnore]
             public byte bitDepth;
+
+            [JsonIgnore]
             public byte noChannels;
+
+            [JsonProperty(Order = 0)]
             public int pMiscData;
+
+            [JsonProperty(Order = 1)]
             public uint miscDataSize;
+
+            [JsonProperty(Order = 2)]
             public byte flags;
+
+            [JsonProperty(Order = 3)]
             public byte reserved;
 
             public int Serialize(BinaryWriter bw, int length)
             {
                 bw.Write(sampleRate);
-                bw.Write(pDataType); 
+                bw.Write(dataType); 
                 bw.Write(length);
                 bw.Write((uint)(bitDepth | noChannels << 8));
                 bw.Write(pMiscData);
@@ -37,7 +54,7 @@ namespace AWDio
                 Format format = new()
                 {
                     sampleRate = (uint)data[0],
-                    pDataType = data[1],
+                    dataType = data[1],
                     bitDepth = (byte)(0xFF & data[3]),
                     noChannels = (byte)((0xFF00 & data[3]) >> 8),
                     pMiscData = data[4],
@@ -49,18 +66,43 @@ namespace AWDio
             }
         }
 
+        [JsonIgnore]
         public UniqueID uniqueID;
-        public int pWaveDef;
+
         public Format format;
+
         public Format targetFormat;
+
         public uint uncompLength;
 
+        [JsonIgnore] public byte[] Data { get; set; } = Array.Empty<byte>();
+
+        
+
+        [JsonProperty(Order = 0)]
+        public string Name { 
+            get { return uniqueID.Name; } 
+            set {
+                if (Encoding.UTF8.GetByteCount(value) != value.Length)
+                {
+                    uniqueID.Name = value;
+                }
+            } 
+        }
+
+        [JsonProperty(Order = 1)]
+        public int pWaveDef;
+
+        [JsonIgnore]
         public int pData;
 
-        public byte[] Data { get; set; } = Array.Empty<byte>();
-
+        [JsonProperty(Order = 3)]
         public int pState;
+
+        [JsonProperty(Order = 4)]
         public uint flags;
+
+        [JsonProperty(Order = 5)]
         public int pObj;
 
         public int SerializeAudioData(BinaryWriter bw)
@@ -68,7 +110,6 @@ namespace AWDio
             bw.Write(Data);
             return 0;
         }
-
 
         public int Serialize(BinaryWriter bw)
         {

@@ -2,7 +2,7 @@
   "profiles": {
     "AWDio": {
       "commandName": "Project",
-      "commandLineArgs": "\"D:\\Games\\ROMs\\PS2\\Burnout Dominator (PS2)\\SOUND\\RECKLESS.AWD\" \"D:\\Games\\ROMs\\PS2\\Burnout Dominator (PS2)\\SOUND\\RECKLESSs.AWD\""
+      "commandLineArgs": "\"D:\\Games\\ROMs\\Xbox\\Burnout Revenge (Xbox)\\Sound\\revenge.awd\" \"D:\\Games\\ROMs\\Xbox\\Burnout Revenge (Xbox)\\Sound\\revenge\""
     }
   }
 }

@@ -1,17 +1,34 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+
+using Newtonsoft.Json;
+
+
+
 
 namespace AWDio
 {
     public class AWD : INotifyPropertyChanged
     {
+        public event PropertyChangedEventHandler PropertyChanged;
+
         const string awdFileExt = ".awd";
 
-        static readonly string testExePath = Path.Combine("vgmstream", "test.exe");
+        static readonly string testExePath = Path.Combine(
+            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
+            "vgmstream", 
+            "test"
+        );
+
+        [JsonProperty(Order = 0)]
+        public string Name { get; set; } = string.Empty;
 
         const int Sec1Tag = 0x809;
         const int pWaveListHead = 0x38;
@@ -23,43 +40,80 @@ namespace AWDio
 
         static readonly int namePos = 0x5C;
 
+        static string txthLines = "channels = @0x04\nsample_rate = @0x08\nstart_offset = 0x10\ninterleave = 0x1000\nnum_samples = data_size";
+
         public static AWD Empty { get; } = new AWD();
 
+        [JsonProperty(Order = 8)]
         public byte flags;
+
+        [JsonProperty(Order = 2)]
         public byte flagsAux;
+
+        [JsonProperty(Order = 3)]
         public int dumpAddr;
+
+        [JsonProperty(Order = 4)]
         public int waveRamHandle;
+
+        [JsonProperty(Order = 5)]
         public int waveRamSize;
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        
 
-        public string SystemName => AWDio.SystemUuid.GetSysUuidName(SystemUuid);
+        [JsonIgnore]
+        public string SystemName => AWDio.SystemUuid.GetSysUuidName(SystemUUID);
 
-        public UniqueID UID { get; set; } = new UniqueID(0, 0, 0);
+        [JsonProperty(Order = 6)]
+        public int pUuid { get; set; }
 
-        Guid systemUuid;
-        public Guid SystemUuid
+        Guid system;
+
+        [JsonProperty(Order = 1)]
+        public Guid SystemUUID
         {
-            get { return systemUuid; }
+            get { return system; }
             set {
-                if (systemUuid != value)
+                if (system != value)
                 {
-                    systemUuid = value;
+                    system = value;
                     RaisePropertyChanged(nameof(SystemName));
                 }
             }
         }
 
+        public string GetEncoderString()
+        {
+            if (SystemUUID == SystemUuid.PlayStation)
+            {
+                return "PSX";
+            }
+            else if (SystemUUID == SystemUuid.Xbox)
+            {
+                return "PCM16LE";
+            }
+            return string.Empty;
+        }
+
+        [JsonProperty(Order = 9)]
         public int Unk0 { get; set; }
+
+        [JsonProperty(Order = 10)]
         public int Unk1 { get; set; }
 
+        [JsonIgnore]
         public int pData { get; private set; }
 
+        [JsonIgnore]
         public uint DataSize { get; set; }
-
+        
+        [JsonProperty(Order = 999)]
         public LinkedList<Wave> WaveList { get; set; } = new LinkedList<Wave>();
 
-        public string Name { get; set; } = string.Empty;
+        static readonly string outMagic = "D00D";
+
+        [JsonProperty(Order = 11)]
+        public int UuidFlags { get; set; }
 
         /// <summary>
         /// If <paramref name="outPath"/> is a directory, serialize to individual WAV files + header JSON file.
@@ -73,10 +127,68 @@ namespace AWDio
             string outPathExt = Path.GetExtension(outPath);
             FileStream fs = null;
             var bw = BinaryWriter.Null;
+
             // Directory
             if (string.IsNullOrEmpty(outPathExt))
             {
+                var txthPath = Path.Combine(outPath, ".txth");
+                Directory.CreateDirectory(Path.GetDirectoryName(txthPath));
+                var sw = File.CreateText(txthPath);
+                sw.WriteLine("codec = " + awd.GetEncoderString());
+                sw.WriteLine(txthLines); 
+                sw.Close();
 
+                var outTempFiles = new List<string>();
+
+                Console.WriteLine("Exporting audio files...");
+
+                foreach (var wave in awd.WaveList)
+                {
+                    string outTempFilePath = Path.Combine(outPath, wave.uniqueID.Name + '0'); // Add underscore to name to circumvent vgmstream L/R pair detection.
+                    fs = File.Create(outTempFilePath);
+                    fs.SetLength(0x10);
+                    bw = new BinaryWriter(fs);
+                    bw.Write(Encoding.ASCII.GetBytes(outMagic));
+                    bw.Write((int)wave.format.noChannels);
+                    bw.Write(wave.format.sampleRate);
+                    fs.Seek(0, SeekOrigin.End);
+                    bw.Write(wave.Data);
+                    bw.Close();
+
+                    if (!File.Exists(outTempFilePath))
+                    {
+                        throw new Exception();
+                    }
+
+                    outTempFiles.Add(outTempFilePath);
+                }
+                
+                foreach (var item in outTempFiles)
+                {
+                    System.Diagnostics.Process process = new System.Diagnostics.Process();
+                    System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo();
+                    startInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                    startInfo.RedirectStandardOutput = true;
+                    startInfo.FileName = "cmd.exe";
+                    startInfo.Arguments = $"/C {testExePath} -o \"{Path.ChangeExtension(item[0..^1], ".wav")}\" \"{item}\""; // Todo: make this not shit
+                    process.StartInfo = startInfo;
+                    process.Start();
+                    process.WaitForExit();
+                    File.Delete(item);
+                }
+
+                File.Delete(txthPath);
+
+                var jsSettings = new JsonSerializerSettings
+                {
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
+                };
+
+                string json = JsonConvert.SerializeObject(awd, Formatting.Indented, jsSettings);
+
+                File.WriteAllText(Path.Combine(outPath, awd.Name + ".json"), json);
+
+                Console.WriteLine("AWD extracted successfully.");
             }
             else if (string.Equals(outPathExt, awdFileExt, StringComparison.OrdinalIgnoreCase))
             {
@@ -86,12 +198,12 @@ namespace AWDio
                 bw.Write((ulong)awd.Unk0);
                 bw.Write(AWD.soundBankSize);
                 bw.Write((ulong)awd.Unk1); 
-                bw.Write(awd.SystemUuid.ToByteArray());
+                bw.Write(awd.SystemUUID.ToByteArray());
                 bw.Write(awd.pData);
 
-                bw.Write(awd.UID.pUuid);
+                bw.Write(awd.pUuid);
                 bw.Write(namePos);
-                bw.Write(awd.UID.flags);
+                bw.Write(awd.UuidFlags);
 
                 fs.Seek(sizeof(int) * 3, SeekOrigin.Current); // waveListHead
 
@@ -143,13 +255,11 @@ namespace AWDio
                 bw.Write(pWaves[0]);
 
                 fs.SetLength(Utility.RoundUp((int)fs.Length, baseOffset));
-                fs.Seek(0, SeekOrigin.End);
 
+                Console.WriteLine("AWD saved successfully.");
             }
 
             bw.Close();
-
-            Console.WriteLine("\nAWD saved successfully to {0}.\n", outPath);
 
             return 0;
         }
@@ -211,19 +321,19 @@ namespace AWDio
                 return AWD.Empty;
             }
 
-            ret.SystemUuid = sysUuid;
+            ret.SystemUUID = sysUuid;
 
             fs.Position = soundBankDat[3];
 
             int[] waveDictDat = new int[waveDictSize / sizeof(int)];
             Buffer.BlockCopy(br.ReadBytes(waveDictSize), 0, waveDictDat, 0, waveDictSize);
 
-            ret.UID.pUuid = waveDictDat[0];
+            ret.pUuid = waveDictDat[0];
 
             fs.Position = waveDictDat[1];
             ret.Name = br.ReadAscii();
 
-            ret.UID.flags = (uint)waveDictDat[2];
+            ret.UuidFlags = waveDictDat[2];
 
             ret.flags = (byte)((0xFF0000 & waveDictDat[6]) >> 16);
             ret.flagsAux = (byte)((0xFF000000 & waveDictDat[6]) >> 24);
