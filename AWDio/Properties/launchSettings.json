@@ -1,8 +1,7 @@
 {
   "profiles": {
     "AWDio": {
-      "commandName": "Project",
-      "commandLineArgs": "\"D:\\Games\\ROMs\\Xbox\\Burnout Revenge (Xbox)\\Sound\\revenge.awd\" \"D:\\Games\\ROMs\\Xbox\\Burnout Revenge (Xbox)\\Sound\\revenge\""
+      "commandName": "Project"
     }
   }
 }

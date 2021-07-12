@@ -10,9 +10,6 @@ using System.Text;
 
 using Newtonsoft.Json;
 
-
-
-
 namespace AWDio
 {
     public class AWD : INotifyPropertyChanged
@@ -59,10 +56,8 @@ namespace AWDio
         [JsonProperty(Order = 5)]
         public int waveRamSize;
 
-        
-
         [JsonIgnore]
-        public string SystemName => AWDio.SystemUuid.GetSysUuidName(SystemUUID);
+        public string SystemName => SystemUuid.GetSysUuidName(SystemUUID);
 
         [JsonProperty(Order = 6)]
         public int pUuid { get; set; }
@@ -110,7 +105,7 @@ namespace AWDio
         [JsonProperty(Order = 999)]
         public LinkedList<Wave> WaveList { get; set; } = new LinkedList<Wave>();
 
-        static readonly string outMagic = "D00D";
+        static readonly string outMagic = "RwaW";
 
         [JsonProperty(Order = 11)]
         public int UuidFlags { get; set; }
@@ -144,14 +139,13 @@ namespace AWDio
 
                 foreach (var wave in awd.WaveList)
                 {
-                    string outTempFilePath = Path.Combine(outPath, wave.uniqueID.Name + '0'); // Add underscore to name to circumvent vgmstream L/R pair detection.
+                    string outTempFilePath = Path.Combine(outPath, wave.uniqueID.Name + '0'); // Append char to name to circumvent vgmstream L/R pair detection.
                     fs = File.Create(outTempFilePath);
-                    fs.SetLength(0x10);
                     bw = new BinaryWriter(fs);
                     bw.Write(Encoding.ASCII.GetBytes(outMagic));
                     bw.Write((int)wave.format.noChannels);
                     bw.Write(wave.format.sampleRate);
-                    fs.Seek(0, SeekOrigin.End);
+                    fs.Seek(0x10, SeekOrigin.Begin);
                     bw.Write(wave.Data);
                     bw.Close();
 
@@ -165,9 +159,9 @@ namespace AWDio
                 
                 foreach (var item in outTempFiles)
                 {
-                    System.Diagnostics.Process process = new System.Diagnostics.Process();
-                    System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo();
-                    startInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                    var process = new Process();
+                    var startInfo = new ProcessStartInfo();
+                    startInfo.WindowStyle = ProcessWindowStyle.Hidden;
                     startInfo.RedirectStandardOutput = true;
                     startInfo.FileName = "cmd.exe";
                     startInfo.Arguments = $"/C {testExePath} -o \"{Path.ChangeExtension(item[0..^1], ".wav")}\" \"{item}\""; // Todo: make this not shit
@@ -196,7 +190,7 @@ namespace AWDio
 
                 bw.Write(Sec1Tag);
                 bw.Write((ulong)awd.Unk0);
-                bw.Write(AWD.soundBankSize);
+                bw.Write(soundBankSize);
                 bw.Write((ulong)awd.Unk1); 
                 bw.Write(awd.SystemUUID.ToByteArray());
                 bw.Write(awd.pData);
@@ -215,7 +209,10 @@ namespace AWDio
                 fs.Position = namePos;
                 bw.Write(Encoding.ASCII.GetBytes(awd.Name + '\0'));
 
-                while (++fs.Position % 4 != 0);
+                while (fs.Position % 4 != 0)
+                {
+                    fs.Position++;
+                }
 
                 var pWaves = new List<int>();
 
@@ -225,14 +222,12 @@ namespace AWDio
                     wave.Serialize(bw);
                 }
 
-                fs.SetLength(Utility.RoundUp((int)fs.Length, baseOffset));
-                fs.Seek(0, SeekOrigin.End);
+                fs.Seek(Utility.RoundUp((int)fs.Length, baseOffset), SeekOrigin.Begin);
 
                 foreach (var wave in awd.WaveList)
                 {
                     wave.SerializeAudioData(bw);
-                    fs.SetLength(Utility.RoundUp((int)fs.Length, 0x10));
-                    fs.Seek(0, SeekOrigin.End);
+                    fs.Seek(Utility.RoundUp((int)fs.Length, 0x10), SeekOrigin.Begin);
                 }
 
                 // Write link list nodes.
@@ -263,12 +258,7 @@ namespace AWDio
 
             return 0;
         }
-
-        public void RaisePropertyChanged([CallerMemberName]string propName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
-        }
-
+        
         public static AWD Deserialize(string inPath)
         {
             var fs = new FileStream(inPath, FileMode.Open);
@@ -277,7 +267,7 @@ namespace AWDio
             if (fs.Length <= soundBankSize)
             {
                 Console.WriteLine(Error.invalidAwdMessage);
-                return AWD.Empty;
+                return Empty;
             }
 
             var sec1Tag = br.ReadInt32();
@@ -286,7 +276,7 @@ namespace AWDio
             if (sec1Tag != Sec1Tag)
             {
                 Console.WriteLine(Error.invalidAwdMessage);
-                return AWD.Empty;
+                return Empty;
             }
 
             int[] soundBankDat = new int[soundBankSize / sizeof(int)];
@@ -302,7 +292,7 @@ namespace AWDio
             Buffer.BlockCopy(soundBankDat, 6 * sizeof(int), sysUuidDat, 0, 16);
             var sysUuid = new Guid(sysUuidDat);
 
-            bool validSysUuid = AWDio.SystemUuid.IsValid(sysUuid);
+            bool validSysUuid = SystemUuid.IsValid(sysUuid);
             bool validLen = fs.Length > soundBankSize + waveDictSize;
 
             // If either check fails.
@@ -318,7 +308,7 @@ namespace AWDio
                     Console.WriteLine(Error.invalidAwdMessage);
                 }
 
-                return AWD.Empty;
+                return Empty;
             }
 
             ret.SystemUUID = sysUuid;
@@ -371,31 +361,24 @@ namespace AWDio
                 ret.WaveList.AddLast(Wave.Deserialize(br, soundBankDat[10]));
             }
 
-            Console.WriteLine("Name:    {0}", ret.Name);
-            Console.WriteLine("System:  {0}", ret.SystemName);
-            Console.WriteLine();
+            int[] colWidths = new int[] { 16, 8, 12, 12, 16 };
 
-            int col0Width = 16;
-            int col1Width = 8;
-            int col2Width = 12;
-            int col3Width = 12;
-            int col4Width = 16;
-
-            Console.Write("Name".PadRight(col0Width));
-            Console.Write("Rate".PadRight(col1Width));
-            Console.Write("Channels".PadRight(col2Width));
-            Console.Write("Bit Depth".PadRight(col3Width));
-            Console.Write("Length".PadRight(col4Width));
+            Console.WriteLine("Name:    {0}\nSystem:  {1}\n", ret.Name, ret.SystemName);
+            Console.Write("Name".PadRight(colWidths[0]));
+            Console.Write("Rate".PadRight(colWidths[1]));
+            Console.Write("Channels".PadRight(colWidths[2]));
+            Console.Write("Bit Depth".PadRight(colWidths[3]));
+            Console.Write("Length".PadRight(colWidths[4]));
 
             Console.WriteLine();
             Console.WriteLine(new string('=', 64)); // Repeat '=' 64 times.
 
             foreach (var item in ret.WaveList)
             {
-                Console.Write(item.uniqueID.ToString().PadRight(col0Width));
-                Console.Write(item.format.sampleRate.ToString().PadRight(col1Width));
-                Console.Write(item.format.noChannels.ToString().PadRight(col2Width));
-                Console.Write(item.format.bitDepth.ToString().PadRight(col3Width));
+                Console.Write(item.uniqueID.ToString().PadRight(colWidths[0]));
+                Console.Write(item.format.sampleRate.ToString().PadRight(colWidths[1]));
+                Console.Write(item.format.noChannels.ToString().PadRight(colWidths[2]));
+                Console.Write(item.format.bitDepth.ToString().PadRight(colWidths[3]));
                 Console.Write(item.Data.Length.ToString("X8"));
                 Console.WriteLine();
             }
@@ -403,6 +386,11 @@ namespace AWDio
             Console.WriteLine("\nTotal: {0}\n", ret.WaveList.Count);
 
             return ret;
+        }
+
+        public void RaisePropertyChanged([CallerMemberName] string propName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propName));
         }
     }
 }
