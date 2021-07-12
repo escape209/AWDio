@@ -271,25 +271,21 @@ namespace AWDio
             }
 
             var sec1Tag = br.ReadInt32();
-            fs.Seek(0, SeekOrigin.Begin);
 
             if (sec1Tag != Sec1Tag)
             {
                 Console.WriteLine(Error.invalidAwdMessage);
                 return Empty;
             }
-
-            int[] soundBankDat = new int[soundBankSize / sizeof(int)];
-            Buffer.BlockCopy(br.ReadBytes(soundBankSize), 0, soundBankDat, 0, soundBankSize);
             
             var ret = new AWD();
-            ret.Unk0 = soundBankDat[1];
-            ret.pData = soundBankDat[2];
-            ret.Unk1 = soundBankDat[4];
-            ret.DataSize = (uint)soundBankDat[5];
+            ret.Unk0 = br.ReadInt32();
+            ret.pData = br.ReadInt32();
+            var sbd3 = br.ReadInt32();
+            ret.Unk1 = br.ReadInt32();
+            ret.DataSize = br.ReadUInt32();
 
-            var sysUuidDat = new byte[16];
-            Buffer.BlockCopy(soundBankDat, 6 * sizeof(int), sysUuidDat, 0, 16);
+            var sysUuidDat = br.ReadBytes(16);
             var sysUuid = new Guid(sysUuidDat);
 
             bool validSysUuid = SystemUuid.IsValid(sysUuid);
@@ -313,30 +309,33 @@ namespace AWDio
 
             ret.SystemUUID = sysUuid;
 
-            fs.Position = soundBankDat[3];
+            fs.Position = sbd3;
 
-            int[] waveDictDat = new int[waveDictSize / sizeof(int)];
-            Buffer.BlockCopy(br.ReadBytes(waveDictSize), 0, waveDictDat, 0, waveDictSize);
+            ret.pUuid = br.ReadInt32();
+            var pName = br.ReadInt32();
+            ret.UuidFlags = br.ReadInt32();
+            fs.Seek(sizeof(int), SeekOrigin.Current);
+            var pWave0 = br.ReadInt32();
 
-            ret.pUuid = waveDictDat[0];
+            fs.Seek(sizeof(int) + sizeof(short), SeekOrigin.Current);
 
-            fs.Position = waveDictDat[1];
-            ret.Name = br.ReadAscii();
+            ret.flags = br.ReadByte();
+            ret.flagsAux = br.ReadByte();
+            ret.dumpAddr = br.ReadInt32();
+            ret.waveRamHandle = br.ReadInt32();
+            ret.waveRamSize = br.ReadInt32();
 
-            ret.UuidFlags = waveDictDat[2];
-
-            ret.flags = (byte)((0xFF0000 & waveDictDat[6]) >> 16);
-            ret.flagsAux = (byte)((0xFF000000 & waveDictDat[6]) >> 24);
-            ret.dumpAddr = waveDictDat[7];
-            ret.waveRamHandle = waveDictDat[8];
-            ret.waveRamSize = waveDictDat[9];
-
-            fs.Position = waveDictDat[4]; // Go to waveListHead.
+            fs.Position = pWave0; // Go to waveListHead.
 
             var links = new List<int>();
             var datas = new List<int>();
+
+            fs.Position = pName;
+            ret.Name = br.ReadAscii();
+
             int link = pWaveListHead;
             fs.Position = link;
+
             while (!links.Contains(link))
             {
                 links.Add(link);
@@ -358,7 +357,7 @@ namespace AWDio
             foreach (var item in datas)
             {
                 fs.Position = item;
-                ret.WaveList.AddLast(Wave.Deserialize(br, soundBankDat[10]));
+                ret.WaveList.AddLast(Wave.Deserialize(br, ret.pData));
             }
 
             int[] colWidths = new int[] { 16, 8, 12, 12, 16 };
@@ -384,6 +383,8 @@ namespace AWDio
             }
 
             Console.WriteLine("\nTotal: {0}\n", ret.WaveList.Count);
+
+            fs.Close();
 
             return ret;
         }
