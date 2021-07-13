@@ -164,7 +164,8 @@ namespace AWDio
                     startInfo.WindowStyle = ProcessWindowStyle.Hidden;
                     startInfo.RedirectStandardOutput = true;
                     startInfo.FileName = "cmd.exe";
-                    startInfo.Arguments = $"/C {testExePath} -o \"{Path.ChangeExtension(item[0..^1], ".wav")}\" \"{item}\""; // Todo: make this not shit
+                    var outWavePath = Path.ChangeExtension(item[0..^1], ".wav");
+                    startInfo.Arguments = $"/C {testExePath} -o \"{outWavePath}\" \"{item}\""; // Todo: make this not shit
                     process.StartInfo = startInfo;
                     process.Start();
                     process.WaitForExit();
@@ -199,9 +200,10 @@ namespace AWDio
                 bw.Write(namePos);
                 bw.Write(awd.UuidFlags);
 
-                fs.Seek(sizeof(int) * 3, SeekOrigin.Current); // waveListHead
+                fs.Seek((sizeof(int) * 3) + sizeof(short), SeekOrigin.Current); // waveListHead
 
-                bw.Write((uint)(awd.flags << 16 | awd.flagsAux << 24));
+                bw.Write(awd.flags);
+                bw.Write(awd.flagsAux);
                 bw.Write(awd.dumpAddr);
                 bw.Write(awd.waveRamHandle);
                 bw.Write(awd.waveRamSize);
@@ -226,7 +228,7 @@ namespace AWDio
 
                 foreach (var wave in awd.WaveList)
                 {
-                    wave.SerializeAudioData(bw);
+                    bw.Write(wave.Data);
                     fs.Seek(Utility.RoundUp((int)fs.Length, 0x10), SeekOrigin.Begin);
                 }
 
@@ -245,6 +247,7 @@ namespace AWDio
                 bw.Write(pWaveListHead);
                 bw.Write(pWaves[^1] - Wave.size);
 
+                // Write waveListHead.
                 fs.Position = pWaveListHead;
                 bw.Write(pWaves[^1]);
                 bw.Write(pWaves[0]);
