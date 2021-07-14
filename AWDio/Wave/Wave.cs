@@ -4,109 +4,53 @@ using System.Text;
 
 using Newtonsoft.Json;
 
-namespace AWDio
+namespace AWDio.Wave
 {
     public class Wave
     {
         public const int size = 0x5C;
 
-        public class Format
-        {
-            public static readonly int size = 0x1C;
-
-            [JsonIgnore]
-            public uint sampleRate;
-
-            public int dataType;
-
-            // public int length; // length moved to Wave.
-
-            [JsonIgnore]
-            public byte bitDepth;
-
-            [JsonIgnore]
-            public byte noChannels;
-
-            [JsonIgnore]
-            public int pMiscData;
-
-            [JsonIgnore]
-            public uint miscDataSize;
-
-            [JsonIgnore]
-            public byte flags;
-
-            [JsonIgnore]
-            public byte reserved;
-
-            public int Serialize(BinaryWriter bw, int length)
-            {
-                bw.Write(sampleRate);
-                bw.Write(dataType); 
-                bw.Write(length);
-                bw.Write((uint)(bitDepth | noChannels << 8));
-                bw.Write(pMiscData);
-                bw.Write(miscDataSize);
-                bw.Write((uint)(flags | reserved << 8));
-
-                return 0;
-            }
-
-            public static Format GetWaveFormat(BinaryReader br)
-            {
-                Format format = new();
-                format.sampleRate = br.ReadUInt32();
-                format.dataType = br.ReadInt32();
-                br.BaseStream.Seek(sizeof(int), SeekOrigin.Current);
-
-                format.bitDepth = br.ReadByte();
-                format.noChannels = br.ReadByte();
-                br.BaseStream.Seek(sizeof(short), SeekOrigin.Current);
-
-                format.pMiscData = br.ReadInt32();
-                format.miscDataSize = br.ReadUInt32();
-
-                format.flags = br.ReadByte();
-                format.reserved = br.ReadByte();
-                br.BaseStream.Seek(sizeof(short), SeekOrigin.Current);
-
-                return format;
-            }
-        }
-
         public UniqueID uniqueID;
 
-        [JsonProperty(Order = 999)]
-        public Format format;
-
-        [JsonProperty(Order = 1)]
-        public uint uncompLength;
-
-        [JsonIgnore] 
-        public byte[] Data { get; set; } = Array.Empty<byte>();
-
         [JsonProperty(Order = 0)]
-        public string Name { 
-            get { return uniqueID.Name; } 
-            set {
+        public string Name
+        {
+            get { return uniqueID.Name; }
+            set
+            {
                 if (Encoding.UTF8.GetByteCount(value) != value.Length)
                 {
                     uniqueID.Name = value;
                 }
-            } 
+            }
         }
+
+        [JsonProperty(Order = 1)]
+        public uint uncompLength;
 
         [JsonProperty(Order = 2)]
         public int pWaveDef;
-
-        [JsonIgnore]
-        public int pData;
 
         [JsonProperty(Order = 3)]
         public int pState;
 
         [JsonProperty(Order = 4)]
         public uint flags;
+
+        [JsonProperty(Order = 5)]
+        public Format format;
+
+        [JsonProperty(Order = 12)]
+        public int FormatDataType { 
+            get { return format.dataType; }
+            set { format.dataType = value; }
+        }
+
+        [JsonIgnore] 
+        public byte[] Data { get; set; } = Array.Empty<byte>();
+
+        [JsonIgnore]
+        public int pData;
 
         [JsonIgnore]
         public int pObj;
