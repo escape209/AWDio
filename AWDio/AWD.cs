@@ -7,8 +7,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-
-using Newtonsoft.Json;
+using System.Linq;
 
 namespace AWDio
 {
@@ -20,7 +19,7 @@ namespace AWDio
 
         static readonly string testExePath = Path.Combine(
             Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
-            "vgmstream", 
+            "vgmstream",
             "test"
         );
 
@@ -37,7 +36,14 @@ namespace AWDio
 
         static readonly int namePos = 0x5C;
 
-        static string txthLines = "channels = @0x04\nsample_rate = @0x08\nstart_offset = 0x10\ninterleave = 0x1000\nnum_samples = data_size";
+        string[] txthLines = new string[] {
+            "codec = ",
+            "channels = @0x04",
+            "sample_rate = @0x08",
+            "start_offset = 0x10",
+            "interleave = 0x1000",
+            "num_samples = data_size"
+        };
 
         public static AWD Empty { get; } = new AWD();
 
@@ -56,40 +62,6 @@ namespace AWDio
         [JsonProperty(Order = 5)]
         public int waveRamSize;
 
-        [JsonIgnore]
-        public string SystemName => SystemUuid.GetSysUuidName(SystemUUID);
-
-        [JsonProperty(Order = 6)]
-        public int pUuid { get; set; }
-
-        Guid system;
-
-        [JsonProperty(Order = 1)]
-        public Guid SystemUUID
-        {
-            get { return system; }
-            set {
-                if (system != value)
-                {
-                    system = value;
-                    RaisePropertyChanged(nameof(SystemName));
-                }
-            }
-        }
-
-        public string GetEncoderString()
-        {
-            if (SystemUUID == SystemUuid.PlayStation)
-            {
-                return "PSX";
-            }
-            else if (SystemUUID == SystemUuid.Xbox)
-            {
-                return "PCM16LE";
-            }
-            return string.Empty;
-        }
-
         [JsonProperty(Order = 9)]
         public int Unk0 { get; set; }
 
@@ -101,14 +73,26 @@ namespace AWDio
 
         [JsonIgnore]
         public uint DataSize { get; set; }
-        
+
         [JsonProperty(Order = 999)]
         public LinkedList<Wave> WaveList { get; set; } = new LinkedList<Wave>();
 
-        static readonly string outMagic = "RwaW";
-
         [JsonProperty(Order = 11)]
         public int UuidFlags { get; set; }
+
+        [JsonIgnore]
+        public Platform Platform { get; set; }
+
+        [JsonProperty(Order = 6)]
+        public int pUuid { get; set; }
+
+        [JsonProperty(Order = 1)]
+        public Guid PlatUuid
+        {
+            get { return Platform.Uuid; }
+        }
+
+        static readonly string outMagic = "RwaW";
 
         /// <summary>
         /// If <paramref name="outPath"/> is a directory, serialize to individual WAV files + header JSON file.
@@ -129,8 +113,8 @@ namespace AWDio
                 var txthPath = Path.Combine(outPath, ".txth");
                 Directory.CreateDirectory(Path.GetDirectoryName(txthPath));
                 var sw = File.CreateText(txthPath);
-                sw.WriteLine("codec = " + awd.GetEncoderString());
-                sw.WriteLine(txthLines); 
+                var writeCodecStr = "codec = " + awd.Platform.Codec;
+                File.WriteAllLines(txthPath, awd.txthLines);
                 sw.Close();
 
                 var outTempFiles = new List<string>();
@@ -193,7 +177,7 @@ namespace AWDio
                 bw.Write((ulong)awd.Unk0);
                 bw.Write(soundBankSize);
                 bw.Write((ulong)awd.Unk1); 
-                bw.Write(awd.SystemUUID.ToByteArray());
+                bw.Write(awd.PlatUuid.ToByteArray());
                 bw.Write(awd.pData);
 
                 bw.Write(awd.pUuid);
@@ -264,132 +248,141 @@ namespace AWDio
         
         public static AWD Deserialize(string inPath)
         {
-            var fs = new FileStream(inPath, FileMode.Open);
-            var br = new BinaryReader(fs);
-
-            if (fs.Length <= soundBankSize)
+            if (Directory.Exists(inPath))
             {
-                Console.WriteLine(Error.invalidAwdMessage);
-                return Empty;
-            }
+                var ret = new AWD();
 
-            var sec1Tag = br.ReadInt32();
+                var files = Directory.GetFiles(inPath);
 
-            if (sec1Tag != Sec1Tag)
-            {
-                Console.WriteLine(Error.invalidAwdMessage);
-                return Empty;
-            }
-            
-            var ret = new AWD();
-            ret.Unk0 = br.ReadInt32();
-            ret.pData = br.ReadInt32();
-            var sbd3 = br.ReadInt32();
-            ret.Unk1 = br.ReadInt32();
-            ret.DataSize = br.ReadUInt32();
+                var jsonFiles = files.Where(p => Path.GetExtension(p) == ".json").ToArray();
 
-            var sysUuidDat = br.ReadBytes(16);
-            var sysUuid = new Guid(sysUuidDat);
-
-            bool validSysUuid = SystemUuid.IsValid(sysUuid);
-            bool validLen = fs.Length > soundBankSize + waveDictSize;
-
-            // If either check fails.
-            if (validSysUuid ^ validLen)
-            {
-                if (!validSysUuid)
+                if (jsonFiles.Length != 1)
                 {
-                    Console.WriteLine(Error.invalidUuidMessage);
+                    Console.WriteLine("Could not find JSON configuration file.");
+                    return AWD.Empty;
                 }
 
-                if (!validLen)
+                string jsonPath = jsonFiles[0];
+                var jsonIn = File.ReadAllText(jsonPath);
+                var objThing = JsonConvert.DeserializeObject<AWD>(jsonIn);
+
+                return objThing;
+            }
+            else if (string.Equals(Path.GetExtension(inPath), awdFileExt, StringComparison.OrdinalIgnoreCase))
+            {
+                var fs = new FileStream(inPath, FileMode.Open);
+                var br = new BinaryReader(fs);
+
+                if (fs.Length <= soundBankSize)
                 {
                     Console.WriteLine(Error.invalidAwdMessage);
+                    return Empty;
                 }
 
-                return Empty;
-            }
+                var sec1Tag = br.ReadInt32();
 
-            ret.SystemUUID = sysUuid;
+                if (sec1Tag != Sec1Tag)
+                {
+                    Console.WriteLine(Error.invalidAwdMessage);
+                    return Empty;
+                }
 
-            fs.Position = sbd3;
+                var ret = new AWD();
+                ret.Unk0 = br.ReadInt32();
+                ret.pData = br.ReadInt32();
+                var sbd3 = br.ReadInt32();
+                ret.Unk1 = br.ReadInt32();
+                ret.DataSize = br.ReadUInt32();
 
-            ret.pUuid = br.ReadInt32();
-            var pName = br.ReadInt32();
-            ret.UuidFlags = br.ReadInt32();
-            fs.Seek(sizeof(int), SeekOrigin.Current);
-            var pWave0 = br.ReadInt32();
+                var sysUuidDat = br.ReadBytes(16);
+                var sysUuid = new Guid(sysUuidDat);
 
-            fs.Seek(sizeof(int) + sizeof(short), SeekOrigin.Current);
+                bool validSysUuid = Platform.IsValid(sysUuid);
+                bool validLen = fs.Length > soundBankSize + waveDictSize;
 
-            ret.flags = br.ReadByte();
-            ret.flagsAux = br.ReadByte();
-            ret.dumpAddr = br.ReadInt32();
-            ret.waveRamHandle = br.ReadInt32();
-            ret.waveRamSize = br.ReadInt32();
+                // If either check fails.
+                if (validSysUuid ^ validLen)
+                {
+                    if (!validSysUuid)
+                    {
+                        Console.WriteLine(Error.invalidUuidMessage);
+                    }
 
-            fs.Position = pWave0; // Go to waveListHead.
+                    if (!validLen)
+                    {
+                        Console.WriteLine(Error.invalidAwdMessage);
+                    }
 
-            var links = new List<int>();
-            var datas = new List<int>();
+                    return Empty;
+                }
 
-            fs.Position = pName;
-            ret.Name = br.ReadAscii();
+                ret.Platform = Platform.FromUuid(sysUuid);
 
-            int link = pWaveListHead;
-            fs.Position = link;
+                fs.Position = sbd3;
 
-            while (!links.Contains(link))
-            {
-                links.Add(link);
-                fs.Seek(sizeof(int), SeekOrigin.Current);
+                ret.pUuid = br.ReadInt32();
+                var pName = br.ReadInt32();
+                ret.UuidFlags = br.ReadInt32();
 
-                link = br.ReadInt32();
-                int data = br.ReadInt32();
+                fs.Seek((sizeof(int) * 3) + sizeof(short), SeekOrigin.Current);
 
-                datas.Add(data);
+                ret.flags = br.ReadByte();
+                ret.flagsAux = br.ReadByte();
+                ret.dumpAddr = br.ReadInt32();
+                ret.waveRamHandle = br.ReadInt32();
+                ret.waveRamSize = br.ReadInt32();
 
-                fs.Position = link;
-            }
+                fs.Position = pName;
+                ret.Name = br.ReadAscii();
 
-            links.Remove(pWaveListHead);
-            datas.Remove(0);
+                ret.WaveList = new LinkedList<Wave>();
 
-            ret.WaveList = new LinkedList<Wave>();
+                fs.Position = pWaveListHead + sizeof(int);
 
-            foreach (var item in datas)
-            {
-                fs.Position = item;
-                ret.WaveList.AddLast(Wave.Deserialize(br, ret.pData));
-            }
+                var next = br.ReadInt32();
+                while (next != pWaveListHead)
+                {
+                    fs.Position = next + sizeof(int);
 
-            int[] colWidths = new int[] { 16, 8, 12, 12, 16 };
+                    next = br.ReadInt32();
+                    int data = br.ReadInt32(); 
 
-            Console.WriteLine("Name:    {0}\nSystem:  {1}\n", ret.Name, ret.SystemName);
-            Console.Write("Name".PadRight(colWidths[0]));
-            Console.Write("Rate".PadRight(colWidths[1]));
-            Console.Write("Channels".PadRight(colWidths[2]));
-            Console.Write("Bit Depth".PadRight(colWidths[3]));
-            Console.Write("Length".PadRight(colWidths[4]));
+                    fs.Position = data;
+                    ret.WaveList.AddLast(Wave.Deserialize(br, ret.pData));
+                }
 
-            Console.WriteLine();
-            Console.WriteLine(new string('=', 64)); // Repeat '=' 64 times.
+                int[] colWidths = new int[] { 16, 8, 12, 12, 16 };
 
-            foreach (var item in ret.WaveList)
-            {
-                Console.Write(item.uniqueID.ToString().PadRight(colWidths[0]));
-                Console.Write(item.format.sampleRate.ToString().PadRight(colWidths[1]));
-                Console.Write(item.format.noChannels.ToString().PadRight(colWidths[2]));
-                Console.Write(item.format.bitDepth.ToString().PadRight(colWidths[3]));
-                Console.Write(item.Data.Length.ToString("X8"));
+                Console.WriteLine("Name:    {0}\nSystem:  {1}\n", ret.Name, nameof(Platform));
+                Console.Write("Name".PadRight(colWidths[0]));
+                Console.Write("Rate".PadRight(colWidths[1]));
+                Console.Write("Channels".PadRight(colWidths[2]));
+                Console.Write("Bit Depth".PadRight(colWidths[3]));
+                Console.Write("Length".PadRight(colWidths[4]));
+
                 Console.WriteLine();
+                Console.WriteLine(new string('=', 64)); // Repeat '=' 64 times.
+
+                foreach (var item in ret.WaveList)
+                {
+                    Console.Write(item.uniqueID.ToString().PadRight(colWidths[0]));
+                    Console.Write(item.format.sampleRate.ToString().PadRight(colWidths[1]));
+                    Console.Write(item.format.noChannels.ToString().PadRight(colWidths[2]));
+                    Console.Write(item.format.bitDepth.ToString().PadRight(colWidths[3]));
+                    Console.Write(item.Data.Length.ToString("X8"));
+                    Console.WriteLine();
+                }
+
+                Console.WriteLine("\nTotal: {0}\n", ret.WaveList.Count);
+
+                fs.Close();
+
+                return ret;
             }
-
-            Console.WriteLine("\nTotal: {0}\n", ret.WaveList.Count);
-
-            fs.Close();
-
-            return ret;
+            else
+            {
+                return AWD.Empty;
+            }
         }
 
         public void RaisePropertyChanged([CallerMemberName] string propName = null)

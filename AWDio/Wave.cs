@@ -24,16 +24,16 @@ namespace AWDio
             [JsonIgnore]
             public byte noChannels;
 
-            [JsonProperty(Order = 0)]
+            [JsonIgnore]
             public int pMiscData;
 
-            [JsonProperty(Order = 1)]
+            [JsonIgnore]
             public uint miscDataSize;
 
-            [JsonProperty(Order = 2)]
+            [JsonIgnore]
             public byte flags;
 
-            [JsonProperty(Order = 3)]
+            [JsonIgnore]
             public byte reserved;
 
             public static readonly int size = 0x1C;
@@ -73,11 +73,12 @@ namespace AWDio
             }
         }
 
-        [JsonIgnore]
         public UniqueID uniqueID;
 
+        [JsonProperty(Order = 999)]
         public Format format;
 
+        [JsonProperty(Order = 1)]
         public uint uncompLength;
 
         [JsonIgnore] 
@@ -94,7 +95,7 @@ namespace AWDio
             } 
         }
 
-        [JsonProperty(Order = 1)]
+        [JsonProperty(Order = 2)]
         public int pWaveDef;
 
         [JsonIgnore]
@@ -106,7 +107,7 @@ namespace AWDio
         [JsonProperty(Order = 4)]
         public uint flags;
 
-        [JsonProperty(Order = 5)]
+        [JsonIgnore]
         public int pObj;
 
         public int Serialize(BinaryWriter bw)

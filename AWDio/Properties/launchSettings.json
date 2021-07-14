@@ -1,7 +1,8 @@
 {
   "profiles": {
     "AWDio": {
-      "commandName": "Project"
+      "commandName": "Project",
+      "commandLineArgs": "\"D:\\Games\\ROMs\\PS2\\Burnout Dominator (PS2)\\SOUND\\FE.AWD\""
     }
   }
 }
