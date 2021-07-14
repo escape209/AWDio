@@ -37,14 +37,14 @@ namespace AWDio.Wave
         [JsonProperty(Order = 4)]
         public uint flags;
 
-        [JsonProperty(Order = 5)]
-        public Format format;
-
         [JsonProperty(Order = 12)]
         public int FormatDataType { 
             get { return format.dataType; }
             set { format.dataType = value; }
         }
+
+        [JsonIgnore]
+        public Format format;
 
         [JsonIgnore] 
         public byte[] Data { get; set; } = Array.Empty<byte>();
