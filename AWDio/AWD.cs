@@ -129,6 +129,7 @@ namespace AWDio
                 foreach (var item in outTempFiles)
                 {
                     Vgmstream.ConvertToWave(item);
+                    File.Delete(item);
                 }
 
                 File.Delete(txthPath);

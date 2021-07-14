@@ -24,7 +24,7 @@ namespace AWDio
             process.StartInfo = startInfo;
             process.Start();
             process.WaitForExit();
-            File.Delete(inPath);
+            
         }
 
         public static string[] txthLines = new string[] {
