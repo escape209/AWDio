@@ -329,7 +329,7 @@ namespace AWDio
 
                 int[] colWidths = new int[] { 16, 8, 12, 12, 16 };
 
-                Console.WriteLine("Name:    {0}\nSystem:  {1}\n", ret.Name, nameof(Platform));
+                Console.WriteLine("Name:    {0}\nSystem:  {1}\n", ret.Name, ret.Platform.Name);
                 Console.Write("Name".PadRight(colWidths[0]));
                 Console.Write("Rate".PadRight(colWidths[1]));
                 Console.Write("Channels".PadRight(colWidths[2]));
