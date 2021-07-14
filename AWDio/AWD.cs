@@ -1,13 +1,12 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Linq;
+
+using Newtonsoft.Json;
 
 namespace AWDio
 {
@@ -16,12 +15,6 @@ namespace AWDio
         public event PropertyChangedEventHandler PropertyChanged;
 
         const string awdFileExt = ".awd";
-
-        static readonly string testExePath = Path.Combine(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location),
-            "vgmstream",
-            "test"
-        );
 
         [JsonProperty(Order = 0)]
         public string Name { get; set; } = string.Empty;
@@ -35,15 +28,6 @@ namespace AWDio
         static readonly int waveDictSize = 0x30;
 
         static readonly int namePos = 0x5C;
-
-        string[] txthLines = new string[] {
-            "codec = ",
-            "channels = @0x04",
-            "sample_rate = @0x08",
-            "start_offset = 0x10",
-            "interleave = 0x1000",
-            "num_samples = data_size"
-        };
 
         public static AWD Empty { get; } = new AWD();
 
@@ -112,9 +96,10 @@ namespace AWDio
             {
                 var txthPath = Path.Combine(outPath, ".txth");
                 Directory.CreateDirectory(Path.GetDirectoryName(txthPath));
+
                 var sw = File.CreateText(txthPath);
-                var writeCodecStr = "codec = " + awd.Platform.Codec;
-                File.WriteAllLines(txthPath, awd.txthLines);
+                sw.WriteLine("codec = {0}", awd.Platform.Codec);
+                File.WriteAllLines(txthPath, Vgmstream.txthLines);
                 sw.Close();
 
                 var outTempFiles = new List<string>();
@@ -140,20 +125,10 @@ namespace AWDio
 
                     outTempFiles.Add(outTempFilePath);
                 }
-                
+
                 foreach (var item in outTempFiles)
                 {
-                    var process = new Process();
-                    var startInfo = new ProcessStartInfo();
-                    startInfo.WindowStyle = ProcessWindowStyle.Hidden;
-                    startInfo.RedirectStandardOutput = true;
-                    startInfo.FileName = "cmd.exe";
-                    var outWavePath = Path.ChangeExtension(item[0..^1], ".wav");
-                    startInfo.Arguments = $"/C {testExePath} -o \"{outWavePath}\" \"{item}\""; // Todo: make this not shit
-                    process.StartInfo = startInfo;
-                    process.Start();
-                    process.WaitForExit();
-                    File.Delete(item);
+                    Vgmstream.ConvertToWave(item);
                 }
 
                 File.Delete(txthPath);
@@ -176,7 +151,7 @@ namespace AWDio
                 bw.Write(Sec1Tag);
                 bw.Write((ulong)awd.Unk0);
                 bw.Write(soundBankSize);
-                bw.Write((ulong)awd.Unk1); 
+                bw.Write((ulong)awd.Unk1);
                 bw.Write(awd.PlatUuid.ToByteArray());
                 bw.Write(awd.pData);
 
@@ -191,7 +166,7 @@ namespace AWDio
                 bw.Write(awd.dumpAddr);
                 bw.Write(awd.waveRamHandle);
                 bw.Write(awd.waveRamSize);
-                
+
                 fs.Position = namePos;
                 bw.Write(Encoding.ASCII.GetBytes(awd.Name + '\0'));
 
@@ -221,8 +196,8 @@ namespace AWDio
                 bw.Write(pWaveListHead);
 
                 for (int i = 1; i < pWaves.Count; i++)
-                {    
-                    bw.Write(pWaves[i]); 
+                {
+                    bw.Write(pWaves[i]);
                     bw.Write(pWaves[i - 1] - Wave.size);
                     fs.Position = pWaves[i];
                     bw.Write(pWaves[i - 1]);
@@ -245,7 +220,7 @@ namespace AWDio
 
             return 0;
         }
-        
+
         public static AWD Deserialize(string inPath)
         {
             if (Directory.Exists(inPath))
@@ -345,7 +320,7 @@ namespace AWDio
                     fs.Position = next + sizeof(int);
 
                     next = br.ReadInt32();
-                    int data = br.ReadInt32(); 
+                    int data = br.ReadInt32();
 
                     fs.Position = data;
                     ret.WaveList.AddLast(Wave.Deserialize(br, ret.pData));

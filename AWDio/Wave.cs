@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+
 using Newtonsoft.Json;
 
 namespace AWDio
@@ -11,6 +12,8 @@ namespace AWDio
 
         public class Format
         {
+            public static readonly int size = 0x1C;
+
             [JsonIgnore]
             public uint sampleRate;
 
@@ -35,8 +38,6 @@ namespace AWDio
 
             [JsonIgnore]
             public byte reserved;
-
-            public static readonly int size = 0x1C;
 
             public int Serialize(BinaryWriter bw, int length)
             {

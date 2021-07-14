@@ -50,14 +50,5 @@ namespace AWDio
         {
             return FromUuid(uuid) != null;
         }
-
-        public string GetCodecString()
-        {
-            if (!string.IsNullOrEmpty(Codec))
-            {
-                return "codec = " + Codec;
-            }
-            return string.Empty;
-        }
     }
 }
