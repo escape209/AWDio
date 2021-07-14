@@ -59,7 +59,7 @@ namespace AWDio
         public uint DataSize { get; set; }
 
         [JsonProperty(Order = 999)]
-        public LinkedList<Wave> WaveList { get; set; } = new LinkedList<Wave>();
+        public LinkedList<Wave.Wave> WaveList { get; set; } = new LinkedList<Wave.Wave>();
 
         [JsonProperty(Order = 11)]
         public int UuidFlags { get; set; }
@@ -177,7 +177,7 @@ namespace AWDio
 
                 foreach (var wave in awd.WaveList)
                 {
-                    pWaves.Add((int)fs.Position + Wave.size);
+                    pWaves.Add((int)fs.Position + Wave.Wave.size);
                     wave.Serialize(bw);
                 }
 
@@ -196,13 +196,13 @@ namespace AWDio
                 for (int i = 1; i < pWaves.Count; i++)
                 {
                     bw.Write(pWaves[i]);
-                    bw.Write(pWaves[i - 1] - Wave.size);
+                    bw.Write(pWaves[i - 1] - Wave.Wave.size);
                     fs.Position = pWaves[i];
                     bw.Write(pWaves[i - 1]);
                 }
 
                 bw.Write(pWaveListHead);
-                bw.Write(pWaves[^1] - Wave.size);
+                bw.Write(pWaves[^1] - Wave.Wave.size);
 
                 // Write waveListHead.
                 fs.Position = pWaveListHead;
@@ -308,7 +308,7 @@ namespace AWDio
                 fs.Position = pName;
                 ret.Name = br.ReadAscii();
 
-                ret.WaveList = new LinkedList<Wave>();
+                ret.WaveList = new LinkedList<Wave.Wave>();
 
                 fs.Position = pWaveListHead + sizeof(int);
 
@@ -321,7 +321,7 @@ namespace AWDio
                     int data = br.ReadInt32();
 
                     fs.Position = data;
-                    ret.WaveList.AddLast(Wave.Deserialize(br, ret.pData));
+                    ret.WaveList.AddLast(Wave.Wave.Deserialize(br, ret.pData));
                 }
 
                 int[] colWidths = new int[] { 16, 8, 12, 12, 16 };
