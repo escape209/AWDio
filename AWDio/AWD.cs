@@ -97,10 +97,7 @@ namespace AWDio
                 var txthPath = Path.Combine(outPath, ".txth");
                 Directory.CreateDirectory(Path.GetDirectoryName(txthPath));
 
-                var sw = File.CreateText(txthPath);
-                sw.WriteLine("codec = {0}", awd.Platform.Codec);
-                File.WriteAllLines(txthPath, Vgmstream.txthLines);
-                sw.Close();
+                File.WriteAllLines(txthPath, new string[] { $"codec = {awd.Platform.Codec}", Vgmstream.txthLines });
 
                 var outTempFiles = new List<string>();
 

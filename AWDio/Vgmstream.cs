@@ -27,12 +27,11 @@ namespace AWDio
             
         }
 
-        public static string[] txthLines = new string[] {
-            "channels = @0x04",
-            "sample_rate = @0x08",
-            "start_offset = 0x10",
-            "interleave = 0x1000",
-            "num_samples = data_size"
-        };
+        public static string txthLines = 
+            "channels = @0x04\n" +
+            "sample_rate = @0x08\n" +
+            "start_offset = 0x10\n" +
+            "interleave = 0x1000\n" +
+            "num_samples = data_size\n";
     }
 }
