@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Threading.Tasks;
 
 namespace AWDio
 {
@@ -12,7 +13,7 @@ namespace AWDio
             "test"
         );
 
-        public static void ConvertToWave(string inPath)
+        public static async Task ConvertToWave(string inPath)
         {
             var process = new Process();
             var startInfo = new ProcessStartInfo();
@@ -23,8 +24,7 @@ namespace AWDio
             startInfo.Arguments = $"/C {Vgmstream.testExePath} -o \"{outWavePath}\" \"{inPath}\""; // Todo: make this not shit
             process.StartInfo = startInfo;
             process.Start();
-            process.WaitForExit();
-            
+            await process.WaitForExitAsync();
         }
 
         public static string txthLines = 

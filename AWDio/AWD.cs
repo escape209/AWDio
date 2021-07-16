@@ -7,6 +7,8 @@ using System.Text;
 using System.Linq;
 
 using Newtonsoft.Json;
+using System.Threading.Tasks;
+using System.Threading;
 
 namespace AWDio
 {
@@ -85,7 +87,7 @@ namespace AWDio
         /// <param name="awd"></param>
         /// <param name="outPath"></param>
         /// <returns></returns>
-        public static int Serialize(AWD awd, string outPath)
+        public static async Task<int> SerializeAsync(AWD awd, string outPath)
         {
             string outPathExt = Path.GetExtension(outPath);
             FileStream fs = null;
@@ -123,11 +125,8 @@ namespace AWDio
                     outTempFiles.Add(outTempFilePath);
                 }
 
-                foreach (var item in outTempFiles)
-                {
-                    Vgmstream.ConvertToWave(item);
-                    File.Delete(item);
-                }
+                await Task.WhenAll(outTempFiles.Select(s => Vgmstream.ConvertToWave(s)));
+                await Task.WhenAll(outTempFiles.Select(s => Utility.DeleteFileAsync(s)));
 
                 File.Delete(txthPath);
 

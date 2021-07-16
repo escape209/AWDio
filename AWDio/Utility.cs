@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace AWDio
 {
@@ -23,6 +24,11 @@ namespace AWDio
             br.BaseStream.Position = start;
             var bytes = br.ReadBytes(len);
             return Encoding.ASCII.GetString(bytes);
+        }
+
+        public static Task DeleteFileAsync(string path)
+        {
+            return Task.Run(() => File.Delete(path));
         }
     }
 }
