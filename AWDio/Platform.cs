@@ -28,23 +28,13 @@ namespace AWDio
 
         public static Platform PlayStation = new(
             "PlayStation",
-            new Guid(new byte[] { 
-                0xAC, 0xC9, 0xEA, 0xAA, 
-                0x38, 0xFC, 0x17, 0x49, 
-                0xAE, 0x81, 0x64, 0xEA, 
-                0xDB, 0xC7, 0x93, 0x53 
-            }),
+            new Guid("AAEAC9AC-FC38-4917-AE81-64EADBC79353"),
             "PSX"
         );
 
         public static Platform Xbox = new(
             "Xbox",
-            new Guid(new byte[] { 
-                0x04, 0x2D, 0x3A, 0x45, 
-                0x5F, 0xE4, 0xC8, 0x4B, 
-                0x81, 0xF0, 0xDF, 0x75,
-                0x8B, 0x01, 0xF2, 0x73 
-            }), 
+            new Guid("453A2D04-E45F-4BC8-81F0-DF758B01F273"), 
             "PCM16LE"
         );
 
