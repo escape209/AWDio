@@ -1,4 +1,4 @@
-﻿namespace AWDio
+﻿namespace AwdIO
 {
     static class Error
     {

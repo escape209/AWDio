@@ -1,18 +1,25 @@
 ﻿using System;
+using System.Linq;
 
-namespace AWDio
+namespace AwdIO
 {
     public class Platform
     {
         public string Name { get; set; }
         public Guid Uuid { get; set; }
-        public string Codec { get; set; }
 
-        public Platform(string name, Guid uuid, string codec)
+        public Platform(string name, string uuid)
         {
             Name = name;
-            Uuid = uuid;
-            Codec = codec;
+            try
+            {
+                Uuid = new Guid(uuid);
+            }
+            catch (FormatException)
+            {
+                Console.WriteLine("Invalid UUID");
+                Uuid = Guid.Empty;
+            }
         }
 
         static Platform()
@@ -26,28 +33,17 @@ namespace AWDio
 
         public static Platform[] Platforms;
 
-        public static Platform PlayStation = new(
-            "PlayStation",
-            new Guid("AAEAC9AC-FC38-4917-AE81-64EADBC79353"),
-            "PSX"
-        );
-
-        public static Platform Xbox = new(
-            "Xbox",
-            new Guid("453A2D04-E45F-4BC8-81F0-DF758B01F273"), 
-            "PCM16LE"
-        );
+        public static readonly Platform PlayStation = new("PlayStation", "AAEAC9AC-FC38-4917-AE81-64EADBC79353");
+        public static readonly Platform Xbox        = new("Xbox",        "453A2D04-E45F-4BC8-81F0-DF758B01F273");
 
         public static Platform FromUuid(Guid uuid)
         {
-            foreach (var plat in Platforms)
-            {
-                if (uuid == plat.Uuid)
-                {
-                    return plat;
-                }
-            }
-            return null;
+            return Platforms.SingleOrDefault(s => s.Uuid == uuid);
+        }
+        
+        public static Platform FromName(string name)
+        {
+            return Platforms.SingleOrDefault(s => s.Name == name);
         }
 
         public static bool IsValid(Guid uuid)

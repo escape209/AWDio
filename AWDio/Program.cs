@@ -1,9 +1,9 @@
 ﻿using System;
-using System.Diagnostics;
-using System.IO;
 using System.Threading.Tasks;
 
-namespace AWDio
+using AwdIO.Rwa;
+
+namespace AwdIO
 {
     class Program
     {
@@ -13,20 +13,18 @@ namespace AWDio
         {
             Console.WriteLine(usage);
             Console.WriteLine();
+
+            Awd awd = Awd.Empty;
+
             switch (args.Length)
             {
                 case 1:
-                    AWD.Deserialize(args[0]);
+                    await Awd.DeserializeAsync(args[0], false);
                     break;
                 case 2:
-                    var awd = AWD.Deserialize(args[0]);
-                    if (awd != AWD.Empty)
-                    {
-                        await AWD.SerializeAsync(awd, args[1]);
-                    }
+                    awd = await Awd.DeserializeAsync(args[0], false);
+                    await Awd.SerializeAsync(awd, args[1]);
                     break;
-                default:
-                    return;
             }
         }
     }

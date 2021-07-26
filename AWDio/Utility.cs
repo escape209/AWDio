@@ -1,9 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace AWDio
+namespace AwdIO
 {
     public static class Utility
     {
@@ -29,6 +30,27 @@ namespace AWDio
         public static Task DeleteFileAsync(string path)
         {
             return Task.Run(() => File.Delete(path));
+        }
+
+        public static bool IsNullOrZero(int? val)
+        {
+            return val == 0 || val == null;
+        }
+
+        public static bool? ConsoleReadBool(string input)
+        {
+            if (input.Equals("N", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+            else if (input.Equals("Y", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            else
+            {
+                return null;
+            }
         }
     }
 }

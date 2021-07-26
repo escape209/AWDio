@@ -2,39 +2,26 @@
 
 using Newtonsoft.Json;
 
-namespace AWDio.Wave
+namespace AwdIO.Rwa
 {
-    public class Format
+    public class RwaFormat
     {
         public static readonly int size = 0x1C;
 
-        [JsonIgnore]
         public uint sampleRate;
-
-        [JsonIgnore]
         public int dataType;
 
-        // public int length; // length moved to Wave.
-
         [JsonIgnore]
+        public int length;
+
         public byte bitDepth;
-
-        [JsonIgnore]
         public byte noChannels;
-
-        [JsonIgnore]
         public int pMiscData;
-
-        [JsonIgnore]
         public uint miscDataSize;
-
-        [JsonIgnore]
         public byte flags;
-
-        [JsonIgnore]
         public byte reserved;
 
-        public int Serialize(BinaryWriter bw, int length)
+        public int Serialize(BinaryWriter bw)
         {
             bw.Write(sampleRate);
             bw.Write(dataType);
@@ -47,13 +34,12 @@ namespace AWDio.Wave
             return 0;
         }
 
-        public static Format GetWaveFormat(BinaryReader br)
+        public static RwaFormat GetWaveFormat(BinaryReader br)
         {
-            Format format = new();
+            RwaFormat format = new();
             format.sampleRate = br.ReadUInt32();
             format.dataType = br.ReadInt32();
-            br.BaseStream.Seek(sizeof(int), SeekOrigin.Current);
-
+            format.length = br.ReadInt32();
             format.bitDepth = br.ReadByte();
             format.noChannels = br.ReadByte();
             br.BaseStream.Seek(sizeof(short), SeekOrigin.Current);

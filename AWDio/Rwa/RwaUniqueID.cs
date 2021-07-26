@@ -1,26 +1,18 @@
 ﻿using System;
 
-using Newtonsoft.Json;
-
-namespace AWDio
+namespace AwdIO.Rwa
 {
-    public class UniqueID
+    public class RwaUniqueID
     {
-        [JsonProperty(Order = 0)]
         public string Name { get; set; } = string.Empty;
-
-        [JsonProperty(Order = 1)]
         public Guid Uuid { get; set; } = Guid.Empty;
 
-        [JsonProperty(Order = 2)]
         public int pUuid;
-        [JsonProperty(Order = 3)]
         public int pName;
-        [JsonProperty(Order = 4)]
         public uint flags;
 
-        public UniqueID() { }
-        public UniqueID(int pUuid, int pName, uint flags)
+        public RwaUniqueID() : this(-1, -1, 0) { }
+        public RwaUniqueID(int pUuid, int pName, uint flags)
         {
             this.pUuid = pUuid;
             this.pName = pName;
