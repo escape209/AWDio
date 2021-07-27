@@ -1,8 +1,7 @@
 {
   "profiles": {
     "AWDio": {
-      "commandName": "Project",
-      "commandLineArgs": " "
+      "commandName": "Project"
     }
   }
 }
