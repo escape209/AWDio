@@ -242,7 +242,7 @@ namespace AwdIO.Rwa
 
         static Awd DeserializeFile(string inPath)
         {
-            var fs = new FileStream(inPath, FileMode.Open);
+            var fs = File.OpenRead(inPath);
             var br = new BinaryReader(fs);
 
             var awd = Empty;
@@ -400,7 +400,7 @@ namespace AwdIO.Rwa
                 Console.WriteLine();
             }
 
-            Console.WriteLine("\nTotal: {0}\n", awd.WaveList.Count);
+            Console.WriteLine("\nTotal: {0}", awd.WaveList.Count);
         }
 
         public void RaisePropertyChanged([CallerMemberName] string propName = null)
