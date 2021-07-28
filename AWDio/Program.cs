@@ -7,12 +7,11 @@ namespace AwdIO
 {
     class Program
     {
-        static readonly string usage = "AWDio by escape209\nUsage: AWDio [AWD path]";
+        static readonly string usage = "AwdIO by escape209\nUsage: AwdIO [infile | indir] [outfile | outdir]\n";
 
         static async Task Main(string[] args)
         {
             Console.WriteLine(usage);
-            Console.WriteLine();
 
             Awd awd = Awd.Empty;
 
