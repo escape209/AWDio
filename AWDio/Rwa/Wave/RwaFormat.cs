@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 using Newtonsoft.Json;
 
@@ -13,6 +14,16 @@ namespace AwdIO.Rwa
 
         [JsonIgnore]
         public int length;
+
+        [JsonIgnore]
+        public TimeSpan Duration
+        {
+            get 
+            {
+                var dur = (float)(length * bitDepth) / (sampleRate / 1000);
+                return TimeSpan.FromMilliseconds(dur); 
+            }
+        }
 
         public byte bitDepth;
         public byte noChannels;

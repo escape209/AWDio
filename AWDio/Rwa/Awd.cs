@@ -7,9 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 
-using AwdIO;
-
-using Newtonsoft.Json;  
+using Newtonsoft.Json;
 
 namespace AwdIO.Rwa
 {
@@ -18,11 +16,13 @@ namespace AwdIO.Rwa
         public event PropertyChangedEventHandler PropertyChanged;
 
         const string awdFileExt = ".awd";
-        const int Sec1Tag = 0x809;
-        const int pWaveListHead = 0x38;
+
         const int baseOffset = 0x800; // Container length must be multiple of this.
         static readonly int soundBankSize = 0x2C;
         static readonly int waveDictSize = 0x30;
+
+        const int Sec1Tag = 0x809;
+        const int pWaveListHead = 0x38;
         static readonly int namePos = 0x5C;
 
         public static Awd Empty { get; } = new Awd();
@@ -31,11 +31,7 @@ namespace AwdIO.Rwa
         public string Name { get; set; } = string.Empty;
 
         [JsonProperty(Order = 1)]
-        public string PlatName
-        {
-            get { return Platform.Name; }
-            set { Platform = Platform.FromName(value); }
-        }
+        public Platform Platform { get; set; }
 
         [JsonProperty(Order = 2)]
         public int UuidFlags { get; set; }
@@ -63,9 +59,6 @@ namespace AwdIO.Rwa
 
         [JsonProperty(Order = 10)]
         public LinkedList<RwaWave> WaveList { get; set; } = new LinkedList<RwaWave>();
-
-        [JsonIgnore]
-        public Platform Platform { get; set; }
 
         public int pUuid { get; set; }
 
@@ -268,17 +261,27 @@ namespace AwdIO.Rwa
 
             fs.Seek(sizeof(int), SeekOrigin.Current);
 
-            var sysUuidDat = br.ReadBytes(16);
-            var sysUuid = new Guid(sysUuidDat);
+            var platUuidDat = br.ReadBytes(16);
+            var platUuid = new Guid(platUuidDat);
 
-            // If either check fails.
-            if (!Platform.IsValid(sysUuid))
+            Platform plat = null;
+
+            foreach (var p in Platform.Platforms)
+            {
+                if (p.Uuid == platUuid)
+                {
+                    plat = p;
+                    break;
+                }
+            }
+
+            if (plat == null)
             {
                 Console.WriteLine(Error.invalidUuidMessage);
                 return awd;
             }
 
-            awd.Platform = Platform.FromUuid(sysUuid);
+            awd.Platform = plat;
 
             fs.Position = sbd3;
 
@@ -378,17 +381,17 @@ namespace AwdIO.Rwa
 
         public static void PrintProperties(Awd awd)
         {
-            var colWidths = new int[] { 16, 8, 12, 12, 16 };
+            var colWidths = new int[] { 14, 7, 7, 7, 7 };
 
             Console.WriteLine("Name:    {0}\nSystem:  {1}\n", awd.Name, awd.Platform.Name);
-            Console.Write("Name".PadRight(colWidths[0]));
-            Console.Write("Rate".PadRight(colWidths[1]));
-            Console.Write("Channels".PadRight(colWidths[2]));
-            Console.Write("Bit Depth".PadRight(colWidths[3]));
-            Console.Write("Length".PadRight(colWidths[4]));
+            Console.WriteLine("              Rate          Bit    Duration");
+            Console.Write("Name".PadRight(colWidths[0] ));
+            Console.Write("(Hz)".PadRight(colWidths[1]));
+            Console.Write("Chan.".PadRight(colWidths[2]));
+            Console.Write("Depth".PadRight(colWidths[3]));
+            Console.WriteLine("(mm:ss.fff)".PadRight(colWidths[4]));
 
-            Console.WriteLine();
-            Console.WriteLine(new string('=', 64)); // Repeat '=' 64 times.
+            Console.WriteLine(new string('=', 48)); // Repeat '=' 48 times.
 
             foreach (var item in awd.WaveList)
             {
@@ -396,7 +399,7 @@ namespace AwdIO.Rwa
                 Console.Write(item.format.sampleRate.ToString().PadRight(colWidths[1]));
                 Console.Write(item.format.noChannels.ToString().PadRight(colWidths[2]));
                 Console.Write(item.format.bitDepth.ToString().PadRight(colWidths[3]));
-                Console.Write(item.Data.Length.ToString("X8"));
+                Console.Write(item.format.Duration.ToString("mm\\:ss\\.fff"));
                 Console.WriteLine();
             }
 
